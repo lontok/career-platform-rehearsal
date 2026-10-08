@@ -1368,22 +1368,23 @@ scp -i $KEY "$VM:$BEFORE" data/migration-copy/
 
 Expected: a path like `/home/azureuser/backups/resume-20261008T...db`, copied without error. This is the before-edit copy, kept for reference.
 
-- [ ] Step 2: Pick the row and the word to change.
+- [ ] Step 2: Pick the row and the new location.
+
+Every experience summary is empty on the VM, so the edit goes in `location`, which `/experience` shows after the organization.
 
 ```bash
-ssh -i $KEY $VM "sqlite3 ~/career-platform/data/resume.db \"SELECT id, seed_key, summary FROM experiences ORDER BY display_order;\""
+ssh -i $KEY $VM "sqlite3 ~/career-platform/data/resume.db \"SELECT seed_key, organization, location FROM experiences ORDER BY display_order;\""
 ```
 
-Greg chooses one experience and one word in its summary to change.
+Greg chooses one experience and a new location for it. Pick text that no other row already has, such as `Hollywood, California` in place of `Hollywood, CA`, so the page check below can only match the edited row.
 
 - [ ] Step 3: Make the edit on the VM.
 
 ```bash
 SEED_KEY='experience:...'
-OLD_WORD='...'
-NEW_WORD='...'
-ssh -i $KEY $VM "sqlite3 ~/career-platform/data/resume.db \"UPDATE experiences SET summary = replace(summary, '$OLD_WORD', '$NEW_WORD') WHERE seed_key = '$SEED_KEY'; SELECT changes();\""
-curl -s https://greglontok.com/experience | grep -c "$NEW_WORD"
+NEW_LOCATION='...'
+ssh -i $KEY $VM "sqlite3 ~/career-platform/data/resume.db \"UPDATE experiences SET location = '$NEW_LOCATION' WHERE seed_key = '$SEED_KEY'; SELECT changes();\""
+curl -s https://greglontok.com/experience | grep -c "$NEW_LOCATION"
 ```
 
 Expected: `1` from `changes()`, then a count of at least 1 from the live site. The VM is serving the edited row.
@@ -1411,7 +1412,22 @@ Expected: a count for each of the eight tables, including `experiences: 7 rows c
 bash deploy/scripts/compare-rows.sh "$SOURCE" "$RAILWAY_DATABASE_URL" | tee data/migration-copy/compare-$(date -u +%Y%m%dT%H%M%SZ).txt
 ```
 
-Expected: matching counts for every table, then `Match.`, and exit 0. Any difference stops the cutover here. To retry, drop the Railway rows by running Task 8 again, which leaves the database empty at head, then repeat Steps 5 and 6.
+Expected: matching counts for every table, then `Match.`, and exit 0. Any difference stops the cutover here. To retry, empty the Railway tables and repeat Steps 5 and 6. Task 8's proof test can't do it, because its guard refuses once Greg Lontok's profile is in the database. Run this instead, which deletes every content row and leaves the schema at head:
+
+```bash
+DATABASE_URL="$RAILWAY_DATABASE_URL" uv run python - <<'PY'
+from sqlalchemy import create_engine, text
+from app.core.config import Settings
+from app.db.transfer import CONTENT_TABLES
+engine = create_engine(Settings().database_url)
+with engine.begin() as connection:
+    connection.execute(text("TRUNCATE " + ", ".join(CONTENT_TABLES) + " RESTART IDENTITY"))
+    for table in CONTENT_TABLES:
+        print(table, connection.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one())
+PY
+```
+
+Expected: every table at 0. Only run this against Railway before DNS moves. After cutover, those rows are the live site.
 
 - [ ] Step 7: Check the Railway-provided domain shows the VM's content and the edit.
 
@@ -1421,10 +1437,10 @@ for path in / /experience /skills /education; do
     "$(curl -s "$RAILWAY_APP$path" | md5)" \
     "$(curl -s "https://greglontok.com$path" | md5)"
 done
-curl -s "$RAILWAY_APP/experience" | grep -c "$NEW_WORD"
+curl -s "$RAILWAY_APP/experience" | grep -c "$NEW_LOCATION"
 ```
 
-Expected: matching hashes for each path, and a count of at least 1 for the new word. If a hash differs, compare the two pages by eye before going on. The static-file version hash in the page can differ if the VM's checkout isn't at the same commit as main.
+Expected: matching hashes for each path, and a count of at least 1 for the new location. If a hash differs, compare the two pages by eye before going on. The static-file version hash in the page can differ if the VM's checkout isn't at the same commit as main.
 
 ---
 
@@ -1463,12 +1479,12 @@ for host in greglontok.com www.greglontok.com; do
   curl -sI "https://$host/" | grep -i -E "^HTTP|railway"
   curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" "http://$host/"
   echo | openssl s_client -connect "$host:443" -servername "$host" 2>/dev/null | openssl x509 -noout -subject -issuer -enddate
-  curl -s "https://$host/experience" | grep -c "$NEW_WORD"
+  curl -s "https://$host/experience" | grep -c "$NEW_LOCATION"
   curl -s "https://$host/health"; echo
 done
 ```
 
-Expected for each name: `dig` returns Railway's target, not `20.114.29.82`. The headers show `HTTP/2 200` and a Railway header. Plain http answers `301` to the https address on the same name, not to the other name. The certificate's subject is that name. The new word appears, and `/health` returns `{"status":"ok"}`. If the old IP still answers, wait for the old records' TTL and check again.
+Expected for each name: `dig` returns Railway's target, not `20.114.29.82`. The headers show `HTTP/2 200` and a Railway header. Plain http answers `301` to the https address on the same name, not to the other name. The certificate's subject is that name. The new location appears, and `/health` returns `{"status":"ok"}`. If the old IP still answers, wait for the old records' TTL and check again.
 
 - [ ] Step 5: Run the comparison once more.
 

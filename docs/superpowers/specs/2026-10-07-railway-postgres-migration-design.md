@@ -75,7 +75,7 @@ The transfer script refuses to run unless both databases are at the same Alembic
 
 The comparison script reads every content table from both sides, ordered by primary key. It reports the row count per table and every row that differs or is missing. It exits non-zero on any difference, so it can gate the DNS change. Dates and booleans are compared as Python values, not as the text each database stores, so a SQLite 1 and a PostgreSQL true compare equal.
 
-Before the transfer, Greg edits one row on the VM, for example one word in an experience summary, so the source differs from what the seed would produce. The comparison then proves the rows on Railway came from the VM and not from a seed run. The edit is kept, and the seed file is updated to match in a later content change.
+Before the transfer, Greg edits one row on the VM, for example the location of one experience, so the source differs from what the seed would produce. Every experience summary is empty today, so a summary has nothing to edit. The comparison then proves the rows on Railway came from the VM and not from a seed run. The edit is kept, and the seed file is updated to match in a later content change.
 
 The SQLite file reaches the laptop through the existing backup script on the VM and scp. The transfer and comparison both run from the laptop against the Railway database's public URL.
 
