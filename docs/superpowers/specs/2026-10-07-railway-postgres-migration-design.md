@@ -93,9 +93,9 @@ The Railway side is done in the dashboard, in this order, and each step is check
 4. Run the PostgreSQL proof test from the laptop against the database's public URL. Then drop its tables and run alembic upgrade head again, so the database is empty at head.
 5. Back up the VM's SQLite file, copy it to the laptop, make the one-row edit on the VM, and back up again. Transfer the rows from that second backup to Railway. Run the comparison between the backup and Railway and keep its output.
 6. Check the Railway-provided domain again. The home page, /experience, /skills, and /education show the same content as greglontok.com, including the edited row.
-7. Add greglontok.com as a custom domain on the web service. Railway gives a CNAME value and a TXT record.
-8. At Cloudflare, replace the root A record with a CNAME to Railway's value, set to DNS only, the grey cloud. Add the TXT record. Change nothing else in Cloudflare: no TTL change, no proxy, no SSL mode change, and no redirect. The www record stays as it is.
-9. Wait for Railway to show the domain verified and its certificate issued. Then check https://greglontok.com answers from Railway, http redirects to https, and the comparison still passes.
+7. Add greglontok.com and www.greglontok.com as two custom domains on the web service. Railway gives each one its own CNAME value and TXT record.
+8. At Cloudflare, replace the root A record with a CNAME to Railway's value for greglontok.com, and replace the www A record with a CNAME to Railway's value for www. Set both to DNS only, the grey cloud. Add both TXT records. Change nothing else in Cloudflare: no TTL change, no proxy, no SSL mode change, and no redirect. Both names serve the site, and neither redirects to the other.
+9. Wait for Railway to show both domains verified and their certificates issued. Then check https://greglontok.com and https://www.greglontok.com both answer from Railway, http redirects to https on both, and the comparison still passes.
 10. Leave the VM running. It is the rollback and stays as the course's VM reference.
 
 The lontok.xyz VM is not touched at any step.
@@ -110,7 +110,7 @@ The README's deployment section describes Railway as the deploy path, the seed-b
 - A transfer that fails partway rolls back its transaction, and the empty-target check lets it run again from the start.
 - A comparison that reports differences stops the cutover before step 7. The rows on Railway are dropped and the transfer runs again.
 - Until step 8, nothing public has changed. Rollback is stopping work on Railway.
-- After step 8, rollback is putting the root A record back at Cloudflare, pointed at the VM. The VM is still running and keeps its own certificate, so it is back in front once the record's TTL passes.
+- After step 8, rollback is putting the root and www A records back at Cloudflare, both pointed at the VM. The VM is still running and its certificate covers both names, so it is back in front once the records' TTL passes.
 - If the database is unreachable at runtime, the home page already falls back to app/fallback_profile.json and other pages show the generic error page. That behavior is unchanged and is tested today.
 
 ## 7. Testing
@@ -125,7 +125,7 @@ The README's deployment section describes Railway as the deploy path, the seed-b
 
 ## 8. Acceptance criteria
 
-1. https://greglontok.com serves the site from Railway, with a certificate Railway issued, and http redirects to https.
+1. https://greglontok.com and https://www.greglontok.com both serve the site from Railway, each with a certificate Railway issued, and http redirects to https on both.
 2. The Railway PostgreSQL database is at Alembic head and the comparison against the VM's backup reports no differences, including the edited row.
 3. A push to main builds, runs migrations, and takes traffic only after /health answers. No deploy runs the seed.
 4. pytest passes on SQLite with no PostgreSQL available, and the transfer and comparison scripts have tests.
@@ -141,5 +141,6 @@ The README's deployment section describes Railway as the deploy path, the seed-b
 - The seed stays out of the deploy and runs by hand. Greg, 2026-10-07.
 - Rows are copied from the VM's database rather than rebuilt from the seed, with an edited row and a source-to-target comparison before DNS moves. Greg, 2026-10-07.
 - The VM and its resource group stay after cutover. Greg, 2026-10-07.
-- Cloudflare records are DNS only. The root becomes a CNAME to Railway plus the TXT record, and nothing else in Cloudflare changes. Greg, 2026-10-07.
+- Cloudflare records are DNS only. The root and www each become a CNAME to Railway with their TXT records, and nothing else in Cloudflare changes. Greg, 2026-10-07.
+- www moves to Railway with the root, as its own custom domain and with no redirect between the two. Greg, 2026-10-08.
 - Railpack rather than a Dockerfile, to keep one less file for students to learn before they need it.

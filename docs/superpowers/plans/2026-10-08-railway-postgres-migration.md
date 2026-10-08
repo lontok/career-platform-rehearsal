@@ -16,7 +16,7 @@ Spec: docs/superpowers/specs/2026-10-07-railway-postgres-migration-design.md
 - Local runs and pytest stay on SQLite. `uv run pytest -q` passes with no PostgreSQL available.
 - Railway's pre-deploy command is exactly `alembic upgrade head`. No deploy runs the seed.
 - No Dockerfile and no requirements.txt in the repo. Either one changes how Railpack builds.
-- Cloudflare change is exactly two records: the root A record becomes a CNAME to Railway's value, set to DNS only, and Railway's TXT record is added. Nothing else in Cloudflare changes, including www, TTLs, proxy, SSL mode, and redirects.
+- Cloudflare change is exactly four records. The root and www A records each become a CNAME to Railway's value for that name, set to DNS only, and Railway's two TXT records are added. Nothing else in Cloudflare changes, including TTLs, proxy, SSL mode, and redirects. Neither name redirects to the other.
 - The test VM vm-career-platform-test-01 and resource group RG-CAREER-PLATFORM-TEST-01 stay. Nothing deallocates or deletes them.
 - The lontok.xyz VM, vm-career-platform, is not touched.
 - Commit messages carry no Claude attribution lines.
@@ -42,7 +42,7 @@ These are small and deliberate. Each is repeated in the task it affects.
 4. A copy from an old backup that is behind head, or a copy into the same database twice, must refuse with a message that names the revisions or the occupied tables and writes nothing. Task 3 tests both.
 5. A stray requirements.txt or Dockerfile would make Railpack skip uv.lock. Task 5 tests that neither exists.
 
-One more risk has no test because it's a decision, not a defect. The spec keeps www.greglontok.com unchanged, and today www points at the VM. After cutover, www keeps serving the VM's copy while the root serves Railway. Task 10 records what www returns so Greg can decide on it later.
+One more risk has no test because it lives in DNS. If only one of the two names moves, visitors see Railway's rows on one and the VM's rows on the other, and the copies drift after the first content update. Task 10 changes both names in the same sitting and checks both before it's done.
 
 ---
 
@@ -1432,37 +1432,43 @@ Expected: matching hashes for each path, and a count of at least 1 for the new w
 
 Who: Greg in the Cloudflare dashboard, with the checks run from the laptop.
 
-The Cloudflare change is two records and nothing else. Leave www, every TTL, the proxy setting on other records, the SSL mode, and redirects as they are.
+The Cloudflare change is four records and nothing else: a CNAME and a TXT record for the root, and a CNAME and a TXT record for www. Leave every TTL, the proxy setting on other records, the SSL mode, and redirects as they are.
 
 - [ ] Step 1: Record the current DNS so rollback has exact values.
 
 ```bash
 dig +noall +answer greglontok.com A
-dig +noall +answer www.greglontok.com
+dig +noall +answer www.greglontok.com A
 ```
 
-Expected: `greglontok.com` at `20.114.29.82`. Save both lines, and note whether the root record is proxied in the Cloudflare dashboard.
+Expected: both names as A records at `20.114.29.82`. Save both lines, and note in the Cloudflare dashboard whether each record is proxied.
 
-- [ ] Step 2: In Railway, add `greglontok.com` as a custom domain on the web service. Railway shows a CNAME value and a TXT record.
+- [ ] Step 2: In Railway, add `greglontok.com` and `www.greglontok.com` as two custom domains on the web service. Railway shows a CNAME value and a TXT record for each. Note which value belongs to which name, since they differ.
 
 - [ ] Step 3: In Cloudflare, under DNS and then Records for greglontok.com:
 
 1. Delete the root A record that points at `20.114.29.82`.
-2. Add a CNAME record. Name `@`, target Railway's CNAME value, proxy status DNS only, the grey cloud.
-3. Add the TXT record with the name and value Railway shows.
+2. Add a CNAME record. Name `@`, target Railway's CNAME value for `greglontok.com`, proxy status DNS only, the grey cloud.
+3. Add the TXT record Railway shows for `greglontok.com`.
+4. Delete the www A record that points at `20.114.29.82`.
+5. Add a CNAME record. Name `www`, target Railway's CNAME value for `www.greglontok.com`, proxy status DNS only, the grey cloud.
+6. Add the TXT record Railway shows for `www.greglontok.com`.
 
-- [ ] Step 4: Wait for Railway to show the domain verified and its certificate issued. Then check from the laptop.
+- [ ] Step 4: Wait for Railway to show both domains verified and their certificates issued. Then check both names from the laptop.
 
 ```bash
-dig +short greglontok.com
-curl -sI https://greglontok.com/ | grep -i -E "^HTTP|railway"
-curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" http://greglontok.com/
-echo | openssl s_client -connect greglontok.com:443 -servername greglontok.com 2>/dev/null | openssl x509 -noout -subject -issuer -enddate
-curl -s https://greglontok.com/experience | grep -c "$NEW_WORD"
-curl -s https://greglontok.com/health
+for host in greglontok.com www.greglontok.com; do
+  echo "== $host"
+  dig +short "$host"
+  curl -sI "https://$host/" | grep -i -E "^HTTP|railway"
+  curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" "http://$host/"
+  echo | openssl s_client -connect "$host:443" -servername "$host" 2>/dev/null | openssl x509 -noout -subject -issuer -enddate
+  curl -s "https://$host/experience" | grep -c "$NEW_WORD"
+  curl -s "https://$host/health"; echo
+done
 ```
 
-Expected: `dig` returns Railway's target, not `20.114.29.82`. The headers show `HTTP/2 200` and a Railway header. Plain http answers `301` to the https address. The certificate's subject is `greglontok.com`. The new word appears, and `/health` returns `{"status":"ok"}`. If the old IP still answers, wait for the old record's TTL and check again.
+Expected for each name: `dig` returns Railway's target, not `20.114.29.82`. The headers show `HTTP/2 200` and a Railway header. Plain http answers `301` to the https address on the same name, not to the other name. The certificate's subject is that name. The new word appears, and `/health` returns `{"status":"ok"}`. If the old IP still answers, wait for the old records' TTL and check again.
 
 - [ ] Step 5: Run the comparison once more.
 
@@ -1472,15 +1478,7 @@ bash deploy/scripts/compare-rows.sh "$SOURCE" "$RAILWAY_DATABASE_URL"
 
 Expected: `Match.` and exit 0.
 
-- [ ] Step 6: Record what www serves now.
-
-```bash
-curl -s -o /dev/null -w "%{http_code} %{remote_ip}\n" https://www.greglontok.com/
-```
-
-Expected: `200` from `20.114.29.82`, the VM. The spec leaves www unchanged, so www keeps serving the VM's copy. Report this to Greg as an open decision.
-
-- [ ] Step 7: Confirm the VMs are as they were.
+- [ ] Step 6: Confirm the VMs are as they were.
 
 ```bash
 az vm list -d --query "[].{name:name, rg:resourceGroup, power:powerState}" -o table
@@ -1488,7 +1486,7 @@ az vm list -d --query "[].{name:name, rg:resourceGroup, power:powerState}" -o ta
 
 Expected: both VMs listed and running. Nothing in this plan stops or deletes either one.
 
-Rollback, at any point after Step 3: in Cloudflare, delete the CNAME and add back the root A record to `20.114.29.82` with the proxy setting recorded in Step 1. The VM is still running and keeps its own certificate, so it serves again once the CNAME's TTL passes.
+Rollback, at any point after Step 3: in Cloudflare, delete both CNAMEs and add back the root and www A records to `20.114.29.82`, with the proxy settings recorded in Step 1. Roll back both names together. The VM is still running and its certificate covers both names, so it serves again once the CNAMEs' TTL passes.
 
 ---
 
