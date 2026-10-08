@@ -109,9 +109,36 @@ Before publishing a content update, confirm:
 
 ## Deployment
 
-Use [`deploy/README.md`](deploy/README.md) for the complete Codespaces-to-Azure
-VM runbook. It configures Uvicorn only on `127.0.0.1:8000`, with Nginx exposing
-HTTPS publicly. Production SQLite data belongs at
-`/var/lib/career-platform/resume.db`, outside the checkout, and the executable
-backup and restore scripts validate integrity while refusing destructive
-overwrites.
+The site runs on Railway with a Railway PostgreSQL database. `railway.json` holds the service settings, so you can read what Railway does without opening the dashboard. Every push to `main` builds the app from `uv.lock`, runs `alembic upgrade head` as the pre-deploy command, and starts Uvicorn on the port Railway assigns. Railway sends traffic to the new version only once `/health` answers.
+
+A deploy never runs the seed. Code and schema changes ship on push, but content changes are a separate step you run on purpose.
+
+### Update content on Railway
+
+Copy the database's public URL from the Railway Postgres service's Variables tab, where it's called `DATABASE_PUBLIC_URL`. Then edit `app/seed.py`, push, and run the seed once from your laptop:
+
+```bash
+export RAILWAY_DATABASE_URL='postgresql://...'
+DATABASE_URL="$RAILWAY_DATABASE_URL" uv run python -m app.seed
+```
+
+The seed rewrites every seeded row from `app/seed.py`. If a row on Railway was changed by hand and `app/seed.py` doesn't carry the same change, running the seed reverts it.
+
+### Copy rows between databases
+
+`deploy/scripts/transfer-rows.sh` copies every content row from one database to another, keeping the ids. It refuses unless both databases are at the same Alembic head and the target has no rows. `deploy/scripts/compare-rows.sh` reads both and prints every row that differs or is missing, and exits 1 if anything does. Run both from the repo root:
+
+```bash
+bash deploy/scripts/transfer-rows.sh sqlite:///data/resume.db "$RAILWAY_DATABASE_URL"
+bash deploy/scripts/compare-rows.sh sqlite:///data/resume.db "$RAILWAY_DATABASE_URL"
+```
+
+Neither script prints a database URL, since the Railway one carries the password.
+
+### Test against PostgreSQL
+
+`tests/test_postgres.py` runs the migrations and seed against a real PostgreSQL database when `POSTGRES_TEST_URL` is set, and skips otherwise. It drops every table in that database first, and it refuses if any profile other than the fictional sample is there. Point it only at an empty database.
+
+### The Azure VM
+
+[`deploy/README.md`](deploy/README.md) is the runbook for running the site on an Ubuntu Azure VM with Nginx in front. The VM stays as the course's VM reference and as the rollback for the Railway move. Its SQLite backup and restore scripts still apply there.

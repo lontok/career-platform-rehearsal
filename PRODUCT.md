@@ -32,7 +32,7 @@ The recruiter reads the site in a browser on a phone or a laptop, often while co
 
 The content owner edits `app/seed.py` and `app/fallback_profile.json`, then runs the migration and seed commands. The change deploys the same way as a code change. Ordinary content updates must never require a template edit.
 
-The site runs locally in Codespaces first and then on a single Azure VM, with Uvicorn on `127.0.0.1:8000` behind Nginx. The VM is reached by its public IP and has no DNS name.
+The site runs locally on SQLite and in production on Railway at greglontok.com, with a Railway PostgreSQL database. A push to `main` deploys and runs migrations. Content updates run the seed by hand. The Azure VM it ran on before stays as a reference and a rollback.
 
 ## Capabilities and Constraints
 
@@ -66,7 +66,7 @@ The candidate's name is the site identity in the header, footer, and page titles
 2. Every claim on the page comes from a published database record. Templates hold structure, never resume content.
 3. Absence is handled quietly. A missing optional field, an empty section, or a database outage removes elements cleanly instead of showing gaps or errors.
 4. Context beats labels. A skill, metric, or role should appear next to the situation that gives it meaning.
-5. The build stays simple enough for a student to read, run, and deploy on one VM.
+5. The build stays simple enough for a student to read, run, and deploy to Railway.
 
 ## Accessibility & Inclusion
 

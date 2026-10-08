@@ -50,3 +50,14 @@ def test_readme_lists_release_quality_commands() -> None:
     assert "uv run ruff check ." in readme
     assert "uv run pytest -q" in readme
     assert "backup-sqlite.sh" in readme
+
+
+def test_readme_documents_railway_and_hand_run_seed() -> None:
+    readme = Path("README.md").read_text()
+
+    assert "railway.json" in readme
+    assert "deploy/scripts/transfer-rows.sh" in readme
+    assert "deploy/scripts/compare-rows.sh" in readme
+    assert 'DATABASE_URL="$RAILWAY_DATABASE_URL" uv run python -m app.seed' in readme
+    assert "never runs the seed" in readme
+    assert "reverts" in readme
