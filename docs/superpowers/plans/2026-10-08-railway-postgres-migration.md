@@ -1,6 +1,6 @@
 # Railway and PostgreSQL migration implementation plan
 
-> For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task by task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 Goal: Move greglontok.com from the Azure test VM to Railway, with its rows copied into Railway PostgreSQL and checked against the source before DNS moves.
 
@@ -61,7 +61,7 @@ One more risk has no test because it lives in DNS. If only one of the two names 
 
 ## Before Task 1
 
-- [ ] Create the branch.
+- [x] Create the branch.
 
 ```bash
 git switch -c feat/railway-postgres
@@ -82,7 +82,7 @@ Interfaces:
 - Consumes: nothing.
 - Produces: `app.core.config.normalize_database_url(url: str) -> str`. `Settings().database_url` is already rewritten. Tasks 3 and 4 call `normalize_database_url` on URLs that don't come through Settings.
 
-- [ ] Step 1: Write the failing tests in `tests/test_config.py`.
+- [x] Step 1: Write the failing tests in `tests/test_config.py`.
 
 ```python
 from sqlalchemy import create_engine
@@ -135,12 +135,12 @@ def test_engine_for_rewritten_url_uses_psycopg(monkeypatch) -> None:
     assert engine.dialect.driver == "psycopg"
 ```
 
-- [ ] Step 2: Run the tests and confirm they fail.
+- [x] Step 2: Run the tests and confirm they fail.
 
 Run: `uv run pytest tests/test_config.py -v`
 Expected: FAIL with `ImportError: cannot import name 'normalize_database_url'`.
 
-- [ ] Step 3: Add the driver.
+- [x] Step 3: Add the driver.
 
 ```bash
 uv add "psycopg[binary]"
@@ -148,7 +148,7 @@ uv add "psycopg[binary]"
 
 Expected: `pyproject.toml` lists `psycopg[binary]` under dependencies and `uv.lock` changes. The binary extra matters because Railway's image has no libpq.
 
-- [ ] Step 4: Replace `app/core/config.py` with:
+- [x] Step 4: Replace `app/core/config.py` with:
 
 ```python
 from pydantic import field_validator
@@ -178,12 +178,12 @@ class Settings(BaseSettings):
         return normalize_database_url(value)
 ```
 
-- [ ] Step 5: Run the new tests and the full suite.
+- [x] Step 5: Run the new tests and the full suite.
 
 Run: `uv run pytest tests/test_config.py -v && uv run pytest -q`
 Expected: 6 new tests pass, and the full suite passes with no failures.
 
-- [ ] Step 6: Lint and commit.
+- [x] Step 6: Lint and commit.
 
 ```bash
 uv run ruff format . && uv run ruff check .
@@ -209,7 +209,7 @@ Interfaces:
 
 This task fixes the one UPDATE in migration 02 that compares the boolean published column to 0 and 1. The spec counted four. There is one, with three comparisons.
 
-- [ ] Step 1: Add the failing model test to the end of `tests/test_models.py`.
+- [x] Step 1: Add the failing model test to the end of `tests/test_models.py`.
 
 ```python
 def test_single_published_profile_index_is_partial_on_both_databases() -> None:
@@ -229,7 +229,7 @@ def test_single_published_profile_index_is_partial_on_both_databases() -> None:
     assert "WHERE published = true" in postgres_ddl
 ```
 
-- [ ] Step 2: Add two failing migration tests to the end of `tests/test_migrations.py`. Add `import io` to its imports.
+- [x] Step 2: Add two failing migration tests to the end of `tests/test_migrations.py`. Add `import io` to its imports.
 
 ```python
 def test_migration_02_keeps_one_published_profile_on_sqlite(
@@ -276,12 +276,12 @@ def test_migrations_render_postgresql_booleans(monkeypatch) -> None:
 
 The second test renders the migrations as PostgreSQL SQL without a server. Alembic's offline mode needs only the dialect, which Task 1's driver provides.
 
-- [ ] Step 3: Run the new tests and confirm they fail.
+- [x] Step 3: Run the new tests and confirm they fail.
 
 Run: `uv run pytest tests/test_models.py::test_single_published_profile_index_is_partial_on_both_databases tests/test_migrations.py -v`
 Expected: the index test FAILS because the PostgreSQL DDL has no WHERE clause. The render test FAILS on `"published = 1" not in sql`. The SQLite profile test PASSES already. It pins today's behavior so the rewrite can't change it.
 
-- [ ] Step 4: Change the index in `app/models/profile.py`.
+- [x] Step 4: Change the index in `app/models/profile.py`.
 
 ```python
         Index(
@@ -293,7 +293,7 @@ Expected: the index test FAILS because the PostgreSQL DDL has no WHERE clause. T
         ),
 ```
 
-- [ ] Step 5: In `alembic/versions/20260917_02_add_seed_keys.py`, replace the `UPDATE profiles SET published = 0 ...` statement with:
+- [x] Step 5: In `alembic/versions/20260917_02_add_seed_keys.py`, replace the `UPDATE profiles SET published = 0 ...` statement with:
 
 ```python
     # Bound booleans render as 1 and 0 on SQLite and true and false on PostgreSQL,
@@ -336,17 +336,17 @@ Then change the index in the same file:
 
 Leave migrations 01, 03, and 04 alone. Their string and date comparisons are valid on PostgreSQL.
 
-- [ ] Step 6: Run the tests and the full suite.
+- [x] Step 6: Run the tests and the full suite.
 
 Run: `uv run pytest tests/test_models.py tests/test_migrations.py -v && uv run pytest -q`
 Expected: all pass, including the existing `test_upgrade_keeps_experience_children`.
 
-- [ ] Step 7: Check the real local database still migrates cleanly.
+- [x] Step 7: Check the real local database still migrates cleanly.
 
 Run: `uv run alembic upgrade head && uv run alembic current`
 Expected: `20261006_04 (head)` and no error. Migration 02 already ran on this file, so nothing reruns.
 
-- [ ] Step 8: Lint and commit.
+- [x] Step 8: Lint and commit.
 
 ```bash
 uv run ruff format . && uv run ruff check .
@@ -378,7 +378,7 @@ Interfaces:
 
 The spec puts both scripts under deploy/scripts. The logic lives in `app/db/transfer.py` so tests import it directly, and the two wrappers there call it.
 
-- [ ] Step 1: Write the failing tests in `tests/test_transfer.py`.
+- [x] Step 1: Write the failing tests in `tests/test_transfer.py`.
 
 ```python
 from __future__ import annotations
@@ -514,12 +514,12 @@ def test_wrappers_reject_missing_arguments() -> None:
 
 The sample seed fills every content table, including accomplishments and both skill link tables, so the copy test covers the foreign-key order.
 
-- [ ] Step 2: Run the tests and confirm they fail.
+- [x] Step 2: Run the tests and confirm they fail.
 
 Run: `uv run pytest tests/test_transfer.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'app.db.transfer'`.
 
-- [ ] Step 3: Create `app/db/transfer.py`.
+- [x] Step 3: Create `app/db/transfer.py`.
 
 ```python
 """Copy resume rows from one database to another, and compare the two.
@@ -753,7 +753,7 @@ if __name__ == "__main__":
 
 Dates and booleans compare as Python values because both sides are read through the same SQLAlchemy column types. A SQLite 1 and a PostgreSQL true both come back as `True`.
 
-- [ ] Step 4: Create `deploy/scripts/transfer-rows.sh`.
+- [x] Step 4: Create `deploy/scripts/transfer-rows.sh`.
 
 ```bash
 #!/usr/bin/env bash
@@ -773,7 +773,7 @@ fi
 exec uv run python -m app.db.transfer copy "$1" "$2"
 ```
 
-- [ ] Step 5: Create `deploy/scripts/compare-rows.sh`.
+- [x] Step 5: Create `deploy/scripts/compare-rows.sh`.
 
 ```bash
 #!/usr/bin/env bash
@@ -795,12 +795,12 @@ exec uv run python -m app.db.transfer compare "$1" "$2"
 
 Then make both executable: `chmod +x deploy/scripts/transfer-rows.sh deploy/scripts/compare-rows.sh`.
 
-- [ ] Step 6: Run the tests and the full suite.
+- [x] Step 6: Run the tests and the full suite.
 
 Run: `uv run pytest tests/test_transfer.py -v && uv run pytest -q`
 Expected: 8 new tests pass, and the full suite passes.
 
-- [ ] Step 7: Try the command line on the local database.
+- [x] Step 7: Try the command line on the local database.
 
 ```bash
 mkdir -p data/backup-verification
@@ -813,7 +813,7 @@ rm data/backup-verification/copy-check.db
 
 Expected: the copy prints a count for each of the eight tables, with 7 experiences. The compare prints matching counts and `Match.` and exits 0.
 
-- [ ] Step 8: Lint and commit.
+- [x] Step 8: Lint and commit.
 
 ```bash
 uv run ruff format . && uv run ruff check .
@@ -836,7 +836,7 @@ Interfaces:
 
 The spec downgrades "one step." This test downgrades to 20260917_02, the same target the SQLite migration test uses, since that span holds the featured column and the cascade risk. The teardown leaves the database empty at head, which replaces the spec's manual drop in cutover step 4.
 
-- [ ] Step 1: Write `tests/test_postgres.py`.
+- [x] Step 1: Write `tests/test_postgres.py`.
 
 ```python
 """Proof that the migrations and seed work on a real PostgreSQL database.
@@ -1002,17 +1002,17 @@ def test_only_one_profile_can_be_published(postgres_engine, sample_seed) -> None
         connection.execute(insert, {"name": SAMPLE_NAME, "published": True})
 ```
 
-- [ ] Step 2: Run it without PostgreSQL.
+- [x] Step 2: Run it without PostgreSQL.
 
 Run: `uv run pytest tests/test_postgres.py -v`
 Expected: the two guard tests PASS and the three PostgreSQL tests are SKIPPED with the POSTGRES_TEST_URL reason.
 
-- [ ] Step 3: Run the full suite.
+- [x] Step 3: Run the full suite.
 
 Run: `uv run pytest -q`
 Expected: all pass, with 3 skipped.
 
-- [ ] Step 4: Lint and commit.
+- [x] Step 4: Lint and commit.
 
 ```bash
 uv run ruff format . && uv run ruff check .
@@ -1038,7 +1038,7 @@ Interfaces:
 
 The spec's start command "runs Uvicorn through uv." Railpack installs with `uv sync --locked --no-dev` into `/app/.venv` and puts `/app/.venv/bin` on PATH. uv itself may not be in the runtime image, so both commands call the tools from that environment directly.
 
-- [ ] Step 1: Write the failing tests in `tests/test_railway_config.py`.
+- [x] Step 1: Write the failing tests in `tests/test_railway_config.py`.
 
 ```python
 import json
@@ -1088,12 +1088,12 @@ def test_nothing_overrides_the_uv_lock_install() -> None:
     assert Path("uv.lock").exists()
 ```
 
-- [ ] Step 2: Run them and confirm they fail.
+- [x] Step 2: Run them and confirm they fail.
 
 Run: `uv run pytest tests/test_railway_config.py -v`
 Expected: FAIL with `FileNotFoundError: ... 'railway.json'`, except the last test, which passes.
 
-- [ ] Step 3: Create `railway.json`.
+- [x] Step 3: Create `railway.json`.
 
 ```json
 {
@@ -1110,12 +1110,12 @@ Expected: FAIL with `FileNotFoundError: ... 'railway.json'`, except the last tes
 }
 ```
 
-- [ ] Step 4: Run the tests and the full suite.
+- [x] Step 4: Run the tests and the full suite.
 
 Run: `uv run pytest tests/test_railway_config.py -v && uv run pytest -q`
 Expected: all pass.
 
-- [ ] Step 5: Run the start command locally the way Railway will.
+- [x] Step 5: Run the start command locally the way Railway will.
 
 ```bash
 PORT=8123 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8123 &
@@ -1126,7 +1126,7 @@ kill %1
 
 Expected: `{"status":"ok"}`.
 
-- [ ] Step 6: Lint and commit.
+- [x] Step 6: Lint and commit.
 
 ```bash
 uv run ruff format . && uv run ruff check .
@@ -1150,7 +1150,7 @@ Interfaces:
 - Consumes: `railway.json` from Task 5 and the wrappers from Task 3.
 - Produces: the README sections Tasks 8 to 10 point Greg to.
 
-- [ ] Step 1: Add the failing test to the end of `tests/test_deploy_assets.py`.
+- [x] Step 1: Add the failing test to the end of `tests/test_deploy_assets.py`.
 
 ```python
 def test_readme_documents_railway_and_hand_run_seed() -> None:
@@ -1164,12 +1164,12 @@ def test_readme_documents_railway_and_hand_run_seed() -> None:
     assert "reverts" in readme
 ```
 
-- [ ] Step 2: Run it and confirm it fails.
+- [x] Step 2: Run it and confirm it fails.
 
 Run: `uv run pytest tests/test_deploy_assets.py::test_readme_documents_railway_and_hand_run_seed -v`
 Expected: FAIL on `"railway.json" in readme`.
 
-- [ ] Step 3: Replace the `## Deployment` section of `README.md`, through the end of the file, with:
+- [x] Step 3: Replace the `## Deployment` section of `README.md`, through the end of the file, with:
 
 ````markdown
 ## Deployment
@@ -1209,7 +1209,7 @@ Neither script prints a database URL, since the Railway one carries the password
 [`deploy/README.md`](deploy/README.md) is the runbook for running the site on an Ubuntu Azure VM with Nginx in front. The VM stays as the course's VM reference and as the rollback for the Railway move. Its SQLite backup and restore scripts still apply there.
 ````
 
-- [ ] Step 4: Replace `.env.example` with:
+- [x] Step 4: Replace `.env.example` with:
 
 ```bash
 # Local SQLite database for development and tests.
@@ -1220,7 +1220,7 @@ DATABASE_URL=sqlite:///./data/resume.db
 # DATABASE_URL=postgresql://postgres:PASSWORD@HOST:PORT/railway
 ```
 
-- [ ] Step 5: In `PRODUCT.md`, replace line 35:
+- [x] Step 5: In `PRODUCT.md`, replace line 35:
 
 Old:
 
@@ -1248,12 +1248,12 @@ New:
 5. The build stays simple enough for a student to read, run, and deploy to Railway.
 ```
 
-- [ ] Step 6: Run the tests and lint.
+- [x] Step 6: Run the tests and lint.
 
 Run: `uv run pytest -q && uv run ruff format --check . && uv run ruff check .`
 Expected: all pass. `test_readme_lists_release_quality_commands` still passes, since the release checklist section above Deployment is unchanged.
 
-- [ ] Step 7: Check the new prose against the voice rules.
+- [x] Step 7: Check the new prose against the voice rules.
 
 ```bash
 grep -nP "—|;" README.md PRODUCT.md .env.example | grep -v '^\S*:\s*#' || echo "clean"
@@ -1261,14 +1261,14 @@ grep -nP "—|;" README.md PRODUCT.md .env.example | grep -v '^\S*:\s*#' || echo
 
 Expected: `clean`, or only hits inside code blocks.
 
-- [ ] Step 8: Commit.
+- [x] Step 8: Commit.
 
 ```bash
 git add README.md .env.example PRODUCT.md tests/test_deploy_assets.py
 git commit -m "docs: describe the Railway deploy, hand-run seed, and row copy"
 ```
 
-- [ ] Step 9: Merge to main and push, with Greg's go-ahead. Railway deploys from main in Task 7.
+- [x] Step 9: Merge to main and push, with Greg's go-ahead. Railway deploys from main in Task 7.
 
 ```bash
 uv run pytest -q
