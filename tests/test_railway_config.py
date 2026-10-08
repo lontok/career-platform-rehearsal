@@ -43,3 +43,10 @@ def test_nothing_overrides_the_uv_lock_install() -> None:
     assert not Path("requirements.txt").exists()
     assert not Path("Dockerfile").exists()
     assert Path("uv.lock").exists()
+
+
+def test_start_command_trusts_railway_proxy_headers() -> None:
+    # Railway's edge ends https and forwards plain http with X-Forwarded-Proto.
+    # Uvicorn ignores that header unless it trusts the sender, and then builds
+    # http:// links that browsers block on an https page.
+    assert "--forwarded-allow-ips '*'" in _deploy()["startCommand"]
