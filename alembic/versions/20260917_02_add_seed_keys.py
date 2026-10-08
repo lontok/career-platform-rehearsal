@@ -58,21 +58,28 @@ def upgrade() -> None:
         "AND start_date = '2022-08-22'"
     )
 
+    # Bound booleans render as 1 and 0 on SQLite and true and false on PostgreSQL,
+    # which rejects a boolean column compared to an integer.
     op.execute(
-        """
-        UPDATE profiles
-        SET published = 0
-        WHERE published = 1
-          AND id != (
-              SELECT id
-              FROM profiles
-              WHERE published = 1
-              ORDER BY
-                  CASE WHEN seed_key = 'profile:primary' THEN 0 ELSE 1 END,
-                  id
-              LIMIT 1
-          )
-        """
+        sa.text(
+            """
+            UPDATE profiles
+            SET published = :unpublished
+            WHERE published = :published
+              AND id != (
+                  SELECT id
+                  FROM profiles
+                  WHERE published = :published
+                  ORDER BY
+                      CASE WHEN seed_key = 'profile:primary' THEN 0 ELSE 1 END,
+                      id
+                  LIMIT 1
+              )
+            """
+        ).bindparams(
+            sa.bindparam("unpublished", False, type_=sa.Boolean()),
+            sa.bindparam("published", True, type_=sa.Boolean()),
+        )
     )
 
     op.create_index("ux_profiles_seed_key", "profiles", ["seed_key"], unique=True)
@@ -82,6 +89,7 @@ def upgrade() -> None:
         ["published"],
         unique=True,
         sqlite_where=sa.text("published = 1"),
+        postgresql_where=sa.text("published = true"),
     )
     op.create_index("ux_skills_seed_key", "skills", ["seed_key"], unique=True)
     op.create_index("ux_experiences_seed_key", "experiences", ["seed_key"], unique=True)

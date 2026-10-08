@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import sqlite3
 from pathlib import Path
 
@@ -75,3 +76,48 @@ def test_upgrade_keeps_experience_children(monkeypatch, tmp_path) -> None:
     assert "featured" not in columns
     assert accomplishments_after_downgrade == (1,)
     assert links_after_downgrade == (1,)
+
+
+def test_migration_02_keeps_one_published_profile_on_sqlite(
+    monkeypatch, tmp_path
+) -> None:
+    database = tmp_path / "profiles.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{database}")
+    config = _alembic_config()
+    command.upgrade(config, "20260915_01")
+
+    with sqlite3.connect(database) as connection:
+        for profile_id, email in (
+            (1, "other@example.com"),
+            (2, "alex.parker@example.com"),
+        ):
+            connection.execute(
+                "INSERT INTO profiles (id, full_name, headline, summary, location,"
+                " target_roles, email, published)"
+                " VALUES (?, 'Alex Parker', 'Analyst', 'Summary.', 'Los Angeles',"
+                " '', ?, 1)",
+                (profile_id, email),
+            )
+
+    command.upgrade(config, "20260917_02")
+
+    with sqlite3.connect(database) as connection:
+        published = connection.execute(
+            "SELECT id FROM profiles WHERE published = 1"
+        ).fetchall()
+
+    assert published == [(2,)]
+
+
+def test_migrations_render_postgresql_booleans(monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:secret@localhost:5432/db")
+    output = io.StringIO()
+    config = Config(str(REPO_ROOT / "alembic.ini"), output_buffer=output)
+    config.set_main_option("script_location", str(REPO_ROOT / "alembic"))
+
+    command.upgrade(config, "head", sql=True)
+
+    sql = " ".join(output.getvalue().split())
+    assert "published = 1" not in sql
+    assert "SET published = false WHERE published = true" in sql
+    assert "WHERE published = true" in sql

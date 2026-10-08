@@ -142,3 +142,20 @@ def test_database_allows_only_one_published_profile(monkeypatch) -> None:
 
         with pytest.raises(IntegrityError):
             session.commit()
+
+
+def test_single_published_profile_index_is_partial_on_both_databases() -> None:
+    from sqlalchemy.dialects import postgresql, sqlite
+    from sqlalchemy.schema import CreateIndex
+
+    index = next(
+        index
+        for index in Profile.__table__.indexes
+        if index.name == "ux_profiles_single_published"
+    )
+
+    sqlite_ddl = str(CreateIndex(index).compile(dialect=sqlite.dialect()))
+    postgres_ddl = str(CreateIndex(index).compile(dialect=postgresql.dialect()))
+
+    assert "WHERE published = 1" in sqlite_ddl
+    assert "WHERE published = true" in postgres_ddl

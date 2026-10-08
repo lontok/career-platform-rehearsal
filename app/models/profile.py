@@ -13,6 +13,7 @@ class Profile(Base):
             "published",
             unique=True,
             sqlite_where=text("published = 1"),
+            postgresql_where=text("published = true"),
         ),
     )
 
