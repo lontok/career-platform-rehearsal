@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from alembic import command
@@ -130,3 +131,14 @@ def test_wrappers_reject_missing_arguments() -> None:
         )
         assert result.returncode == 64
         assert "Usage:" in result.stderr
+
+
+def test_a_connection_failure_raises_instead_of_reading_as_unmigrated(
+    source_url,
+) -> None:
+    unreachable = "postgresql://user:secret@127.0.0.1:1/railway"
+
+    with pytest.raises(OperationalError):
+        copy_rows(source_url, unreachable)
+    with pytest.raises(OperationalError):
+        compare_databases(source_url, unreachable)

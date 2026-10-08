@@ -16,8 +16,7 @@ from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import Connection, Engine, create_engine, func, select, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import Connection, Engine, create_engine, func, inspect, select, text
 
 from app import models  # noqa: F401  registers every table on Base.metadata
 from app.core.config import normalize_database_url
@@ -74,13 +73,14 @@ def _expected_head() -> str:
 
 
 def _revision(engine: Engine) -> str | None:
-    try:
-        with engine.connect() as connection:
-            return connection.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).scalar_one_or_none()
-    except SQLAlchemyError:
-        return None
+    # A missing version table means an unmigrated database. A failed connection
+    # raises instead, so a mistyped URL never reads as "at None".
+    with engine.connect() as connection:
+        if not inspect(connection).has_table("alembic_version"):
+            return None
+        return connection.execute(
+            text("SELECT version_num FROM alembic_version")
+        ).scalar_one_or_none()
 
 
 def _rows(connection: Connection, name: str) -> list[dict]:
