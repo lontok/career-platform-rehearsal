@@ -432,3 +432,25 @@ def test_homepage_copy_stays_plain(monkeypatch) -> None:
     for phrase in ("with results", "Next steps", "Reach ", "Source:", "every figure"):
         assert phrase.lower() not in response.text.lower()
     assert ">All experience</a>" in response.text
+
+
+def test_every_page_loads_the_google_tag_exactly_once(monkeypatch) -> None:
+    def raising(*_args, **_kwargs):
+        raise DatabaseUnavailableError("Published data is unavailable")
+
+    monkeypatch.setattr(
+        "app.services.resume.ResumeService.get_homepage",
+        lambda _: fallback_homepage_content(),
+    )
+    monkeypatch.setattr("app.services.resume.ResumeService.get_experiences", raising)
+    monkeypatch.setattr(
+        "app.services.resume.ResumeService.get_project_by_slug", lambda *_: None
+    )
+
+    loader = "https://www.googletagmanager.com/gtag/js?id=G-QEYDY81QQ7"
+    with TestClient(create_app()) as app_client:
+        for path in ["/", "/experience", "/projects/missing", "/contact"]:
+            html = app_client.get(path).text
+            assert html.count(loader) == 1, path
+            assert html.count("gtag('config', 'G-QEYDY81QQ7')") == 1, path
+            assert html.index(loader) < html.index("<title>"), path
