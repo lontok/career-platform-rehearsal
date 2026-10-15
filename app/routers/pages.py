@@ -269,6 +269,11 @@ def education_page(
     )
 
 
+@router.get("/privacy", response_class=HTMLResponse, name="privacy_page")
+def privacy_page(request: Request, service: ResumeServiceDependency) -> HTMLResponse:
+    return _render(request, "privacy.html", {}, site_name=service.get_site_name())
+
+
 @router.get("/contact", response_class=HTMLResponse, name="contact_page")
 def contact_page(request: Request, service: ResumeServiceDependency) -> HTMLResponse:
     return _render(

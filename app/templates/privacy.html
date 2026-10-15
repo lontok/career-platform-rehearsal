@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy | {{ site_name }}{% endblock %}
+
+{% block content %}
+  <header class="page-head">
+    <h1>Privacy</h1>
+    <p class="lede">What this site collects about you, why, who receives it, and what you can do about it.</p>
+  </header>
+
+  <div class="prose">
+    <p>This is a personal resume site with no accounts, no sign-in, and no purchases. The site itself sets no cookies, but it loads Google Analytics, which does. This page spells out both halves, and it was last updated on October 15, 2026.</p>
+
+    <h2>What the site records on its own</h2>
+    <p>The site runs on Railway, a hosting service, in a data center in the western United States. Like most web servers, it writes a line to a log for each request: your IP address, the page you asked for, the time, and the name of your browser. I use these logs to find errors. I haven't confirmed how long Railway keeps them.</p>
+    <p>If you visit www.greglontok.com, Cloudflare handles that address and redirects you to greglontok.com. Cloudflare sees that one request, including your IP address.</p>
+
+    <h2>The contact form</h2>
+    <p>The form asks for your name, your email address, and a message. Right now the site doesn't store or send what you type. It checks the fields, shows your message back to you, and forgets it. That means the form can't reach me yet, so if you need a reply, use the links on the home page instead. When I connect the form to email or a database, I'll update this page to say where messages go and how long I keep them.</p>
+
+    <h2>Google Analytics</h2>
+    <p>The site loads Google Analytics 4, property G-QEYDY81QQ7. I added it to learn which pages recruiters read. It also shows which outside links get clicked, like LinkedIn, GitHub, and project pages. I don't use it for advertising.</p>
+    <p>When a page loads, your browser sends Google the page address, the page that linked you here, your browser and device type, your screen size, your language, and your IP address. Google says it uses the IP address to estimate a rough location, such as a city, and doesn't store the address itself. The script also makes up a random identifier for your browser and sends it along, so Google can tell a returning browser from a new one.</p>
+    <p>To keep that identifier, Google sets two cookies on greglontok.com, named _ga and _ga_QEYDY81QQ7. They're set to expire after two years. Safari and some other browsers shorten that to a week or less.</p>
+    <p>Google's default settings also record a few actions beyond page views. They note when you reach the bottom of a page, when you click a link to another site and where it led, and when you download a file. They also note when you start or submit the contact form, carrying the form's name but not what you typed. I haven't turned any of these off, so they are on.</p>
+    <p>Google processes this data on its own servers and shows it to me as counts and charts. For a new property, Google keeps the event-level data for two months. Google can also use the data under its own terms, which are at https://policies.google.com/privacy.</p>
+
+    <h2>Google Fonts</h2>
+    <p>The site's typeface, Archivo, loads from Google Fonts. Your browser fetches it from fonts.googleapis.com and fonts.gstatic.com, so Google receives your IP address, your browser name, and the page you're on. Google states that the Fonts service doesn't set cookies.</p>
+
+    <h2>Your choices</h2>
+    <p>There's no cookie banner on this site, so Google Analytics starts when a page loads. These are the controls that work today:</p>
+    <ul>
+      <li>Install Google's opt-out browser add-on at https://tools.google.com/dlpage/gaoptout. It stops the Analytics script on every site, including this one.</li>
+      <li>Block or delete cookies for greglontok.com in your browser settings. Deleting the two _ga cookies makes your next visit look like a new visitor.</li>
+      <li>Use a content blocker or turn off JavaScript. Everything here works without JavaScript except the timeline on the home page.</li>
+    </ul>
+    <p>The site doesn't react to the Do Not Track or Global Privacy Control signals your browser can send. The Analytics script ignores them, and I haven't added anything that reads them.</p>
+    <p>I don't sell your data and I don't share it with anyone beyond the services named above. This site isn't aimed at children. If you have a question about any of this, reach me through the links on the home page, since the contact form doesn't deliver yet.</p>
+  </div>
+{% endblock %}

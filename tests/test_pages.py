@@ -454,3 +454,22 @@ def test_every_page_loads_the_google_tag_exactly_once(monkeypatch) -> None:
             assert html.count(loader) == 1, path
             assert html.count("gtag('config', 'G-QEYDY81QQ7')") == 1, path
             assert html.index(loader) < html.index("<title>"), path
+
+
+def test_privacy_page_renders_and_is_linked_from_every_footer(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.resume.ResumeService.get_homepage",
+        lambda _: fallback_homepage_content(),
+    )
+
+    with TestClient(create_app()) as app_client:
+        privacy = app_client.get("/privacy")
+        home = app_client.get("/")
+        contact = app_client.get("/contact")
+
+    assert privacy.status_code == 200
+    assert "<h1>Privacy</h1>" in privacy.text
+    assert "G-QEYDY81QQ7" in privacy.text
+    assert "_ga_QEYDY81QQ7" in privacy.text
+    for page in (privacy, home, contact):
+        assert page.text.count('href="http://testserver/privacy"') == 1

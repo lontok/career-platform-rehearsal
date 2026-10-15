@@ -249,6 +249,34 @@ a:hover {
   font-weight: 650;
 }
 
+/* Prose pages: the privacy page */
+
+.prose {
+  margin-top: var(--space-6);
+}
+
+.prose h2 {
+  margin-top: var(--space-7);
+  margin-bottom: var(--space-3);
+}
+
+.prose p + p,
+.prose ul + p {
+  margin-top: var(--space-4);
+}
+
+.prose ul {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-left: 1.25rem;
+  max-width: 68ch;
+}
+
+.site-footer nav a {
+  color: inherit;
+}
+
 /* Title block: the page's action title */
 
 .title-block {

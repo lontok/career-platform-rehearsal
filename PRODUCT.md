@@ -45,7 +45,7 @@ The site runs locally on SQLite and in production on Railway at greglontok.com, 
 - When the database is down, the home page renders a validated fallback profile. It shows name, headline, summary, location, target roles, and contact links, plus a message that details are temporarily unavailable. Experience, projects, skills, and education are omitted rather than served from a stale source. Any design must still hold up in this degraded state.
 - Other routes return a plain generic error page when the database is down, with no stack traces, queries, or credentials.
 - The first release uses FastAPI, Jinja templates, plain CSS in `app/static/styles.css`, and SQLite. Greg didn't make "no JavaScript," "content-agnostic layouts," or "self-hosted assets only" binding design constraints during init, so those remain open decisions.
-- Out of scope for now: registration and sign-in, multiple profiles, a browser admin, job tracking, messaging, resume import, a blog, testimonials, a downloadable PDF resume, and visitor analytics. A contact form exists at `/contact`, but it doesn't store or send messages yet.
+- Out of scope for now: registration and sign-in, multiple profiles, a browser admin, job tracking, messaging, resume import, a blog, testimonials, a downloadable PDF resume, and a browser admin for analytics. Google Analytics 4 (page views and enhanced measurement) is installed in the shared template, and `/privacy`, linked from the footer, describes what it and the hosting collect. A contact form exists at `/contact`, but it doesn't store or send messages yet.
 
 ## Brand Commitments
 
