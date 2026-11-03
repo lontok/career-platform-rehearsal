@@ -38,10 +38,26 @@ def test_systemd_binds_uvicorn_to_loopback_only() -> None:
     assert "--port 8000" in service
 
 
+def test_systemd_trusts_forwarded_headers_from_loopback_only() -> None:
+    service = Path("deploy/systemd/career-platform.service").read_text()
+
+    # Uvicorn trusts X-Forwarded-Proto only from 127.0.0.1 by default, which is
+    # where Nginx connects from. Widening it would let anyone fake https.
+    assert "forwarded-allow-ips" not in service
+
+
 def test_nginx_proxies_to_loopback() -> None:
     config = Path("deploy/nginx/career-platform.conf").read_text()
 
     assert "proxy_pass http://127.0.0.1:8000;" in config
+
+
+def test_http_config_proxies_to_loopback() -> None:
+    config = Path("deploy/nginx/career-platform-http.conf").read_text()
+
+    assert "listen 80;" in config
+    assert "proxy_pass http://127.0.0.1:8000;" in config
+    assert "listen 443" not in config
 
 
 def test_readme_lists_release_quality_commands() -> None:
