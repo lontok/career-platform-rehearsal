@@ -109,9 +109,147 @@ Before publishing a content update, confirm:
 
 ## Deployment
 
-The site runs on Railway with a Railway PostgreSQL database. `railway.json` holds the service settings, so you can read what Railway does without opening the dashboard. Every push to `main` builds the app from `uv.lock`, runs `alembic upgrade head` as the pre-deploy command, and starts Uvicorn on the port Railway assigns. Railway sends traffic to the new version only once `/health` answers.
+Since November 3, 2026, https://greglontok.com runs on AWS in us-east-1. The app runs on one EC2 server behind Nginx, and its rows live in a Single-AZ RDS PostgreSQL database. Before that it ran on Railway, which is now the rollback until its trial ends. `migration-notes.md` logs the move step by step, including every change from the plan in `docs/superpowers/plans/2026-11-02-aws-ec2-rds-migration.md`.
 
-A deploy never runs the seed. Code and schema changes ship on push, but content changes are a separate step you run on purpose.
+### Why EC2 with RDS
+
+I chose EC2 with RDS over EC2 with PostgreSQL on the same server because I wanted AWS to run the database's backups and patching. I accept another service to manage and about $14 a month more for it. Lambda with API Gateway was the third option, but it would have meant changing how the app handles requests and database connections.
+
+### How a request reaches the site
+
+```mermaid
+flowchart LR
+    visitor["Visitor's browser"]
+    admin["Laptop<br/>SSH key, passwords,<br/>dump copies"]
+
+    subgraph cloudflare["Cloudflare"]
+        dns["DNS only, grey cloud<br/>greglontok.com A 52.45.148.7<br/>aws.greglontok.com A 52.45.148.7"]
+        www["www.greglontok.com<br/>proxied, 301 to the apex"]
+    end
+
+    subgraph aws["AWS us-east-1, default VPC, us-east-1a"]
+        subgraph websg["Security group career-platform-web"]
+            subgraph ec2["EC2 t3.micro, Ubuntu 26.04<br/>Elastic IP 52.45.148.7"]
+                nginx["Nginx<br/>HTTPS ends here<br/>Let's Encrypt certificates"]
+                app["Uvicorn as user career-platform<br/>127.0.0.1:8000 only"]
+                dumps[("/var/backups/career-platform<br/>pg_dump files")]
+            end
+        end
+        subgraph dbsg["Security group career-platform-db"]
+            rds[("RDS PostgreSQL 18.6<br/>db.t4g.micro, Single-AZ<br/>not publicly accessible")]
+        end
+        snapshots[("RDS automated backups<br/>daily, kept 7 days")]
+    end
+
+    railway["Railway<br/>rollback only, no DNS points here"]
+
+    visitor -. "1. DNS lookup" .-> dns
+    visitor -- "2. HTTPS 443, or HTTP 80 then 301<br/>open to anyone" --> nginx
+    nginx -- "HTTP proxy" --> app
+    app -- "5432 over TLS<br/>only from career-platform-web" --> rds
+    rds -.-> snapshots
+    admin -- "SSH 22, my IP only" --> ec2
+    dumps -. "scp" .-> admin
+```
+
+The solid arrows carry traffic, and the dotted ones are lookups and backups. Cloudflare only answers the DNS lookup for the apex. The browser then connects straight to the Elastic IP, so Cloudflare never sees that traffic. Only `www` goes through Cloudflare's proxy, which redirects it to the apex.
+
+### Deploy an update
+
+Deploys are by hand over SSH. Nothing on AWS watches `main`. The server checks out the branch you deploy, so push it first, then run:
+
+```bash
+ssh -i ~/.ssh/career-platform-aws ubuntu@52.45.148.7
+sudo -u career-platform bash -c 'set -a; . /etc/career-platform/environment; set +a
+  cd /srv/career-platform
+  git pull --ff-only
+  bash deploy/scripts/backup-postgres.sh "$DATABASE_URL" /var/backups/career-platform
+  /usr/local/bin/uv sync --locked --no-dev
+  /usr/local/bin/uv run --no-sync alembic upgrade head'
+sudo systemctl restart career-platform
+curl -fsS https://greglontok.com/health
+```
+
+The backup runs before the migration, so a migration that goes wrong has a copy from a minute earlier. The service starts with `uv run --no-sync`, which keeps a restart from installing the dev tools or needing the internet.
+
+A deploy never runs the seed. To change content, edit `app/seed.py`, push, deploy, and then run the seed on the server:
+
+```bash
+sudo -u career-platform bash -c 'set -a; . /etc/career-platform/environment; set +a
+  cd /srv/career-platform && /usr/local/bin/uv run --no-sync python -m app.seed'
+```
+
+The seed rewrites every seeded row from `app/seed.py`, so a row changed by hand reverts unless `app/seed.py` carries the same change.
+
+### Backups and recovery
+
+The database is backed up three ways:
+
+| Backup | Where | How often | Kept |
+|---|---|---|---|
+| RDS automated backups | AWS, outside the server | Daily from 09:00 to 09:30 UTC, plus transaction logs for point-in-time restore | 7 days |
+| `pg_dump` files | `/var/backups/career-platform` on the server | Before every deploy | Until deleted |
+| Final Railway dump | `data/backups/resume-20261103T205859Z-1.dump` on the laptop, outside AWS | Once, at cutover | Until the AWS site has run cleanly for a week |
+
+I can live with losing a day of content changes. Recovery can take up to a day too. Content only changes when I run the seed, so in practice there's almost nothing to lose.
+
+To undo a bad change, restore RDS to a point in time from the last 7 days. The course policy denies a restore that leaves out the instance class or the public flag, so pass both:
+
+```bash
+aws rds restore-db-instance-to-point-in-time --profile isba-4775-test \
+  --source-db-instance-identifier career-platform-db \
+  --target-db-instance-identifier career-platform-db-restored \
+  --restore-time 2026-11-04T12:00:00Z --db-instance-class db.t4g.micro \
+  --no-publicly-accessible --no-multi-az --availability-zone us-east-1a \
+  --vpc-security-group-ids sg-04e7733ccae6f3c35
+```
+
+The restored database gets a new endpoint. Update `DATABASE_URL` in `/etc/career-platform/environment`, restart the service, then delete the old instance with a final snapshot.
+
+To restore a dump instead, stop the service and recreate an empty `career_platform` database as `cp_admin`, owned by `career_platform`. Then run `deploy/scripts/restore-postgres.sh <dump> "$DATABASE_URL"` on the server as `career-platform`, followed by `alembic upgrade head`. RDS's master user isn't a superuser, so it needed `GRANT career_platform TO cp_admin` before it could drop the app's database. The restore of the final Railway dump took under a second.
+
+### What was tested
+
+Before cutover, the AWS copy ran at https://aws.greglontok.com. These checks passed, with the evidence in `migration-notes.md`:
+
+- Every row in RDS matched the backup across all 8 tables.
+- A test record survived an app restart.
+- The server came back on its own after a reboot.
+- All 8 pages, the static assets, the redirects, the analytics tag, and the contact form behaved the same as on Railway.
+- SSH answered only from my IP, and RDS refused connections from outside its security group.
+- The instance and database matched the course's size limits.
+
+At cutover the final data matched Railway row for row, and every check passed again at https://greglontok.com.
+
+Automatic certificate renewal is the one check still open. `certbot renew --dry-run` uses Let's Encrypt's staging service, which was down on November 3. A real renewal of the greglontok.com certificate through Nginx did succeed right after cutover. The certificates expire February 1, 2027, and the renewal timer runs twice a day.
+
+### What it costs
+
+| Item | Monthly |
+|---|---|
+| EC2 t3.micro | $7.59 |
+| EC2 root volume, 20 GB gp3 | $1.60 |
+| Public IPv4 for the Elastic IP | $3.65 |
+| RDS db.t4g.micro, Single-AZ | $11.68 |
+| RDS storage, 20 GB gp3 | $2.30 |
+| Backups and data transfer | $0.00, within the free allowances |
+| Total | $26.82 |
+
+Prices are from the AWS Price List API on November 3, 2026. The course's $100 in credits covers the rest of the semester.
+
+### Next steps
+
+1. Stop the Railway web deployment, or let the trial end, so nothing serves stale content.
+2. Rerun `sudo certbot renew --dry-run` once Let's Encrypt staging answers again.
+3. Create the zero-spend budget from the root login.
+4. Merge `aws-ec2-rds-migration` into `main` after Railway is stopped, since a push to `main` still redeploys Railway while it runs.
+5. At the end of the semester, decide whether to keep paying, move to a cheaper host, or delete the AWS resources tagged `Project=career-platform`.
+
+## Railway, the rollback
+
+`railway.json` holds the Railway service settings. Every push to `main` builds the app from `uv.lock`, runs `alembic upgrade head` as the pre-deploy command, and starts Uvicorn on the port Railway assigns. Railway sends traffic to the new version only once `/health` answers. A deploy never runs the seed.
+
+To roll back, point the apex record back at the Railway CNAME saved in `data/backups/cloudflare-records-2026-11-03-before-cutover.json`, and redeploy the Railway web service if it was stopped. AWS takes no content writes except the seed, so there's nothing to reconcile unless a seed ran on AWS after November 3.
 
 ### Update content on Railway
 
@@ -169,10 +307,10 @@ docker rm -f restore-test
 
 `compare-rows.sh` should print `Match.` Every page at http://localhost:8001 should load as it does on the live site.
 
-### Test against PostgreSQL
+## Test against PostgreSQL
 
 `tests/test_postgres.py` runs the migrations and seed against a real PostgreSQL database when `POSTGRES_TEST_URL` is set, and skips otherwise. It drops every table in that database first, and it refuses if any profile other than the fictional sample is there. Point it only at an empty database.
 
-### The Azure VM
+## The Azure VM
 
-[`deploy/README.md`](deploy/README.md) is the runbook for running the site on an Ubuntu Azure VM with Nginx in front. The VM stays as the course's VM reference and as the rollback for the Railway move. Its SQLite backup and restore scripts still apply there.
+[`deploy/README.md`](deploy/README.md) is the runbook for running the site on an Ubuntu Azure VM with Nginx in front. The AWS server was set up from its sections 2 to 4, with PostgreSQL in place of SQLite. The VM stays as the course's VM reference, and its SQLite backup and restore scripts still apply there.

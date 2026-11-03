@@ -93,3 +93,14 @@ def test_readme_documents_railway_and_hand_run_seed() -> None:
     assert 'DATABASE_URL="$RAILWAY_DATABASE_URL" uv run python -m app.seed' in readme
     assert "never runs the seed" in readme
     assert "reverts" in readme
+
+
+def test_readme_documents_the_aws_deployment() -> None:
+    readme = Path("README.md").read_text()
+
+    assert "```mermaid" in readme
+    assert "migration-notes.md" in readme
+    assert "restore-postgres.sh" in readme
+    assert "restore-db-instance-to-point-in-time" in readme
+    assert "uv run --no-sync python -m app.seed" in readme
+    assert "never runs the seed" in readme
