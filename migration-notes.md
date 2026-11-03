@@ -16,6 +16,11 @@ A log of the move from Railway to AWS, with every change from the plan in `docs/
 | 2026-11-03 | The restore ran as the `career_platform` role, created by `cp_admin` from the server | The plan's app role. The master password went to the server over stdin into a private file, which was deleted after use. |
 | 2026-11-03 | The aws.greglontok.com certificate was issued without a `certbot --dry-run` first | Let's Encrypt's staging API, which dry runs use, timed out from both the server and the laptop. Production answered in 0.13 seconds. DNS and port 80 were already verified, so one production request was made, with the plan to stop rather than retry if it failed. |
 | 2026-11-03 | Certbot registered without an email address | No email was given to Let's Encrypt. Renewal runs on the certbot timer, and section 10 checks it. |
+| 2026-11-03 | Cutover started Tuesday instead of Thursday | Requested. It leaves more of the Railway trial as a rollback. |
+| 2026-11-03 | Cutover started with `certbot renew --dry-run` still unverified | Let's Encrypt staging was down. It affects renewal in about 60 days, not today's cutover. |
+| 2026-11-03 | The DNS-01 challenge ran through a small certbot hook that waits for a flag file, and the TXT record was added and removed with the `cf` CLI from the laptop | `certbot --manual` waits for Enter, and no Cloudflare token goes on the server |
+| 2026-11-03 | `cp_admin` was granted membership in `career_platform` | On RDS the master user isn't a superuser, so it can't drop a database owned by another role without that membership |
+| 2026-11-03 | The Railway web deployment wasn't stopped by the agent | Claude Code's auto-mode safety check denied `railway down`. Waiting for the student's decision. |
 
 ## Log
 
@@ -44,4 +49,14 @@ A log of the move from Railway to AWS, with every change from the plan in `docs/
 | RDS private | Publicly accessible False. The endpoint resolves to 172.31.81.45. Port 5432 is unreachable from the laptop, and its group allows only `career-platform-web`. | Verified |
 | Sizes | EC2 t3.micro, IMDSv2 required, standard credits, 20 GB encrypted gp3, us-east-1a. RDS db.t4g.micro, Single-AZ, 20 GB encrypted gp3, us-east-1a, 7-day backups. | Verified |
 | Ports from the internet | 22, 80, and 443 open from the allowed IP. 5432 and 8000 closed. | Verified |
+
+## Section 11 cutover log, 2026-11-03
+
+- 20:52 UTC: Elastic IP 52.45.148.7 confirmed attached to i-01463f87c16915b92.
+- 20:55 UTC: Production certificate for greglontok.com issued by DNS-01 before any traffic moved (Let's Encrypt YE2, expires 2027-02-01). The temporary `_acme-challenge` TXT record was visible on Cloudflare's nameserver, 1.1.1.1, and 8.8.8.8 within 20 seconds, then deleted.
+- 20:57 UTC: Added Nginx site `career-platform-apex` for greglontok.com, and `certbot install --redirect` added HTTPS. Through the Elastic IP with `--resolve`, `/health`, `/`, and `/experience` returned 200, and HTTP returned 301 to HTTPS.
+- 20:58 UTC: Saved the zone's 12 records to `data/backups/cloudflare-records-2026-11-03-before-cutover.json`. The apex was CNAME `f6lqertk.up.railway.app`, DNS only, record ID adb246d43c21c051a9c284dd55a84f10.
+- 20:59 UTC: Final Railway dump `data/backups/resume-20261103T205859Z-1.dump`, 26,268 bytes, SHA-256 735b62535e08491e725027595d859d87393d026b8c32cb654ee5ef255c992025, in 3 seconds. Recovery point 20:59:02 UTC. Checksum matched on the server.
+- 21:00 UTC: Recreated `career_platform` and restored the final dump. 0 migrations applied, at `20261006_04 (head)`, and the section 10 test record is gone. `compare-rows.sh` between Railway's live database and RDS printed `Match.` on all 8 tables.
+- Not done yet: stopping the Railway web deployment, the apex DNS change, production verification, and switching renewal to the Nginx method. Railway still serves greglontok.com.
 
