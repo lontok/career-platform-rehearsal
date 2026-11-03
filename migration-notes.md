@@ -20,7 +20,9 @@ A log of the move from Railway to AWS, with every change from the plan in `docs/
 | 2026-11-03 | Cutover started with `certbot renew --dry-run` still unverified | Let's Encrypt staging was down. It affects renewal in about 60 days, not today's cutover. |
 | 2026-11-03 | The DNS-01 challenge ran through a small certbot hook that waits for a flag file, and the TXT record was added and removed with the `cf` CLI from the laptop | `certbot --manual` waits for Enter, and no Cloudflare token goes on the server |
 | 2026-11-03 | `cp_admin` was granted membership in `career_platform` | On RDS the master user isn't a superuser, so it can't drop a database owned by another role without that membership |
-| 2026-11-03 | The Railway web deployment wasn't stopped by the agent | Claude Code's auto-mode safety check denied `railway down`. Waiting for the student's decision. |
+| 2026-11-03 | DNS moved before the Railway web deployment was stopped | Claude Code's auto-mode safety check denied `railway down`. The student chose to change DNS first and stop Railway later. The app has no write path except the seed, which didn't run, so the two copies can't drift, and visitors with cached DNS kept reaching Railway. |
+| 2026-11-03 | The production certificate was renewed once through Nginx right after cutover instead of `certbot reconfigure` | `reconfigure` tests against Let's Encrypt staging, which was still down. The production renewal switched the method to Nginx and proved it works. |
+| 2026-11-03 | The systemd unit now has `SuccessExitStatus=143` | uv exits 143 on SIGTERM, so systemd marked every stop as failed |
 
 ## Log
 
@@ -58,5 +60,9 @@ A log of the move from Railway to AWS, with every change from the plan in `docs/
 - 20:58 UTC: Saved the zone's 12 records to `data/backups/cloudflare-records-2026-11-03-before-cutover.json`. The apex was CNAME `f6lqertk.up.railway.app`, DNS only, record ID adb246d43c21c051a9c284dd55a84f10.
 - 20:59 UTC: Final Railway dump `data/backups/resume-20261103T205859Z-1.dump`, 26,268 bytes, SHA-256 735b62535e08491e725027595d859d87393d026b8c32cb654ee5ef255c992025, in 3 seconds. Recovery point 20:59:02 UTC. Checksum matched on the server.
 - 21:00 UTC: Recreated `career_platform` and restored the final dump. 0 migrations applied, at `20261006_04 (head)`, and the section 10 test record is gone. `compare-rows.sh` between Railway's live database and RDS printed `Match.` on all 8 tables.
-- Not done yet: stopping the Railway web deployment, the apex DNS change, production verification, and switching renewal to the Nginx method. Railway still serves greglontok.com.
+- 21:02:36 UTC: Changed only the apex record (ID adb246d43c21c051a9c284dd55a84f10) from CNAME `f6lqertk.up.railway.app` to A 52.45.148.7, DNS only, TTL 60. A before-and-after comparison of all 12 records shows only that change. Cloudflare's nameserver, 1.1.1.1, and 8.8.8.8 returned 52.45.148.7 nine seconds later.
+- 21:03 UTC: Verified production at https://greglontok.com. `Server: nginx/1.28.3 (Ubuntu)` (Railway answers as railway-edge), certificate CN=greglontok.com. All 8 pages 200, unknown project 404, HTTP 301 to HTTPS, `www` 301 to the apex, no `http://` links, all 3 assets 200, analytics tag present, contact form 200. MX and SPF intact.
+- 21:05 UTC: Renewed the greglontok.com certificate through Nginx (HTTP-01). Both certificates now renew with `authenticator = nginx`. Removed the DNS-01 hook scripts.
+- 21:08 UTC: Loaded the `SuccessExitStatus=143` unit at 68cd146 with `daemon-reload`, without restarting the app.
+- Still open: stop the Railway web deployment (student), `certbot renew --dry-run` once Let's Encrypt staging is back, the README update, and the diagram.
 
