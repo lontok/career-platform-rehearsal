@@ -135,6 +135,40 @@ bash deploy/scripts/compare-rows.sh sqlite:///data/resume.db "$RAILWAY_DATABASE_
 
 Neither script prints a database URL, since the Railway one carries the password.
 
+### Back up and restore the Railway database
+
+`deploy/scripts/backup-postgres.sh` writes a `pg_dump` custom-format file to a directory you name, readable only by you. It checks that `pg_restore` can read the file and that it holds the resume tables, and deletes it otherwise. `deploy/scripts/restore-postgres.sh` loads a backup into an existing database in one transaction. It refuses if the target already has tables, so it can't mix two copies.
+
+Reach the database through Railway's SSH tunnel, which works with the public TCP proxy turned off. From a folder linked with `railway link`, run this in its own terminal and leave it open:
+
+```bash
+railway connect postgres --tunnel-only -P 55440
+```
+
+It prints a URL on `127.0.0.1:55440`. Set `RAILWAY_DATABASE_URL` to that URL, and set `DOCKER_RAILWAY_URL` to the same URL with `127.0.0.1` replaced by `host.docker.internal`, so a container can reach the tunnel. Railway runs PostgreSQL 18, and `pg_dump` refuses a server newer than itself. The Homebrew client here is 14, so run both scripts in the `postgres:18` image:
+
+```bash
+PG18() { docker run --rm -v "$PWD":/work -w /work postgres:18 "$@"; }
+BACKUP_FILE="$(PG18 bash deploy/scripts/backup-postgres.sh "$DOCKER_RAILWAY_URL" data/backups)"
+```
+
+On 2026-10-29, killing `railway connect` from another terminal left its `ssh` child running. Confirm with `lsof -nP -iTCP:55440 -sTCP:LISTEN` that nothing is still listening.
+
+Test each backup by restoring it into a scratch database, never into Railway. Then compare the rows against Railway and serve the site from the copy:
+
+```bash
+docker run -d --name restore-test -e POSTGRES_PASSWORD=test -p 55432:5432 postgres:18
+docker exec restore-test createdb -U postgres restored
+PG18 bash deploy/scripts/restore-postgres.sh "$BACKUP_FILE" \
+  postgresql://postgres:test@host.docker.internal:55432/restored
+RESTORED_URL=postgresql://postgres:test@localhost:55432/restored
+bash deploy/scripts/compare-rows.sh "$RAILWAY_DATABASE_URL" "$RESTORED_URL"
+DATABASE_URL="$RESTORED_URL" uv run uvicorn app.main:app --port 8001
+docker rm -f restore-test
+```
+
+`compare-rows.sh` should print `Match.` Every page at http://localhost:8001 should load as it does on the live site.
+
 ### Test against PostgreSQL
 
 `tests/test_postgres.py` runs the migrations and seed against a real PostgreSQL database when `POSTGRES_TEST_URL` is set, and skips otherwise. It drops every table in that database first, and it refuses if any profile other than the fictional sample is there. Point it only at an empty database.
