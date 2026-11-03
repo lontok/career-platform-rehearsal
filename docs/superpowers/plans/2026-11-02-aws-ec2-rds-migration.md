@@ -145,8 +145,8 @@ Do Tasks 9.1 and 9.2 on your laptop before touching the server.
 
 Gate: you approve adding the `aws` A record in Cloudflare.
 
-- [ ] Task 10.1: Save the zone's records to `data/backups/cloudflare-records-2026-11-04.json`. Add an A record `aws` pointing at `$EIP`, DNS only. Leave every other record alone.
-- [ ] Task 10.2: Add HTTPS for `aws.<your domain>` with sections 3 to 6 of the HTTPS guide. Run `sudo apt-get install -y certbot python3-certbot-nginx`, then `sudo certbot certonly --nginx --dry-run -d aws.<your domain>`, then `sudo certbot --nginx -d aws.<your domain>`.
+- [x] Task 10.1: Save the zone's records to `data/backups/cloudflare-records-2026-11-04.json`. Add an A record `aws` pointing at `$EIP`, DNS only. Leave every other record alone.
+- [x] Task 10.2: Add HTTPS for `aws.<your domain>` with sections 3 to 6 of the HTTPS guide. Run `sudo apt-get install -y certbot python3-certbot-nginx`, then `sudo certbot certonly --nginx --dry-run -d aws.<your domain>`, then `sudo certbot --nginx -d aws.<your domain>`.
 - [ ] Task 10.3: Check, and record evidence for each item in `migration-notes.md`. Mark anything you didn't verify.
   - The deployed commit matches `git rev-parse HEAD` on the branch. Row counts match the backup: profiles 1, skills 4, experiences 7, education 2, and the rest 0.
   - Add one test record (an unpublished skill named `aws-test-record`) with psql, restart `career-platform`, and confirm it's still there. Note it for deletion in section 11.

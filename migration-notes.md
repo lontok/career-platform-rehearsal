@@ -24,7 +24,24 @@ A log of the move from Railway to AWS, with every change from the plan in `docs/
 - 2026-11-03: Section 9. Committed tested backup and restore scripts and the port-80 Nginx config, and pushed `aws-ec2-rds-migration` (Railway's service deploys from `main`, checked first). On the server: Ubuntu packages including pg_restore 18.6, uv 0.13.7, Python 3.12.16 from `.python-version`, the `career-platform` service user, and a clone of the branch at d390a4b.
 - 2026-11-03: Restored `railway-20261029T194805Z.dump` (SHA-256 9f013aa5...ee92, matched after copy) into RDS in 0.27 seconds. `alembic upgrade head` applied 0 migrations, and the database is at `20261006_04 (head)`. Row counts match the October 29 drill: profiles 1, skills 4, experiences 7, education 2, and 0 in the other four tables. Every table is owned by `career_platform`, and the connection uses TLS (`ssl=true`) under the default `sslmode=prefer`.
 - 2026-11-03: `career-platform` and `nginx` are enabled and active. Uvicorn runs as `career-platform` on 127.0.0.1:8000 only. Nginx answers `aws.greglontok.com` on port 80, `/health` returns ok from the laptop, and port 8000 refuses outside connections. No errors in either service's log. Production DNS is unchanged, and Railway still serves greglontok.com.
-- Not yet verified: HTTPS for `aws.greglontok.com`, a reboot, the test record, and the full page checks. Those are section 10.
 - 2026-11-03: Section 10. Saved the zone's 11 records to `data/backups/cloudflare-records-2026-11-03-before-aws.json` (ignored by Git). Added one A record with the `cf` CLI: `aws.greglontok.com` to 52.45.148.7, DNS only, automatic TTL. A before-and-after comparison shows that record added and nothing else removed or changed. 1.1.1.1 and 8.8.8.8 both resolve it, and `http://aws.greglontok.com/health` returns ok. The apex still points to Railway.
 - 2026-11-03: Installed certbot 4.0.0 with its Nginx plugin and ran `certbot --nginx -d aws.greglontok.com --redirect`. The certificate is CN=aws.greglontok.com from Let's Encrypt YE1 and expires 2027-02-01. Certbot added the 443 server and a 301 from HTTP. Checked from the laptop: `/health` returns ok over HTTPS, `http://aws.greglontok.com/experience` returns 301 to the https URL, the certificate verifies, and the home page has no `http://` links to the host. `certbot.timer` is enabled.
-- Not yet verified: `certbot renew --dry-run` (waiting on Let's Encrypt staging), the test record, the reboot, and the remaining page and lockdown checks.
+
+## Section 10 verification, 2026-11-03
+
+| Check | Evidence | Result |
+|---|---|---|
+| Deployed commit | Server at d390a4b. The branch head 157e6b0 differs only in the plan and these notes. | Verified |
+| Records match the backup | The Oct 29 dump restored into a local PostgreSQL 18 container, compared with RDS through an SSH tunnel by `compare-rows.sh` | `Match.` on all 8 tables |
+| Test record survives a restart | `skills` id 5, `aws-test-record`, unpublished, still present after `systemctl restart` (PID 4049 to 5837) and not shown on `/skills` | Verified. Delete before cutover. |
+| Reboot | Boot ID changed, up since 20:46:32 UTC. `career-platform`, `nginx`, and `certbot.timer` active, app running as `career-platform`, test record present, no errors in either log | Verified. HTTPS answered 25 seconds after the reboot command. |
+| Pages | `/`, `/experience`, `/projects`, `/skills`, `/education`, `/contact`, `/privacy`, and `/health` return 200, and an unknown project returns 404, the same as Railway. Each page's HTML matches greglontok.com once host names and asset version strings are removed. | Verified |
+| Assets | `favicon.svg`, `styles.css`, and `timeline.js` return 200 with the right types | Verified |
+| Redirects | `http://aws.greglontok.com/skills` returns 301 to https. The bare IP over HTTP returns 404. | Verified |
+| Integrations | Google Analytics tag present. Contact form returns 400 when empty and 200 with the message echoed when filled. | Verified |
+| Certificate renewal | `certbot renew --dry-run` hung because Let's Encrypt staging still timed out, and it was stopped. The timer is active and the certificate is valid to 2027-02-01. | Not verified. Rerun when staging is back. |
+| SSH restricted | Port 22 allows only 172.117.89.209/32. From the server's own public address port 22 timed out while 443 connected. | Verified |
+| RDS private | Publicly accessible False. The endpoint resolves to 172.31.81.45. Port 5432 is unreachable from the laptop, and its group allows only `career-platform-web`. | Verified |
+| Sizes | EC2 t3.micro, IMDSv2 required, standard credits, 20 GB encrypted gp3, us-east-1a. RDS db.t4g.micro, Single-AZ, 20 GB encrypted gp3, us-east-1a, 7-day backups. | Verified |
+| Ports from the internet | 22, 80, and 443 open from the allowed IP. 5432 and 8000 closed. | Verified |
+
