@@ -14,6 +14,8 @@ A log of the move from Railway to AWS, with every change from the plan in `docs/
 | 2026-11-03 | The EC2 instance was launched before the section 1 budget exists | Launched on request. The budget is still the next open step. |
 | 2026-11-03 | The systemd unit now starts with `uv run --no-sync uvicorn` | Plain `uv run` syncs the dev group on every start, which put test tools in production and needed the internet to boot |
 | 2026-11-03 | The restore ran as the `career_platform` role, created by `cp_admin` from the server | The plan's app role. The master password went to the server over stdin into a private file, which was deleted after use. |
+| 2026-11-03 | The aws.greglontok.com certificate was issued without a `certbot --dry-run` first | Let's Encrypt's staging API, which dry runs use, timed out from both the server and the laptop. Production answered in 0.13 seconds. DNS and port 80 were already verified, so one production request was made, with the plan to stop rather than retry if it failed. |
+| 2026-11-03 | Certbot registered without an email address | No email was given to Let's Encrypt. Renewal runs on the certbot timer, and section 10 checks it. |
 
 ## Log
 
@@ -24,3 +26,5 @@ A log of the move from Railway to AWS, with every change from the plan in `docs/
 - 2026-11-03: `career-platform` and `nginx` are enabled and active. Uvicorn runs as `career-platform` on 127.0.0.1:8000 only. Nginx answers `aws.greglontok.com` on port 80, `/health` returns ok from the laptop, and port 8000 refuses outside connections. No errors in either service's log. Production DNS is unchanged, and Railway still serves greglontok.com.
 - Not yet verified: HTTPS for `aws.greglontok.com`, a reboot, the test record, and the full page checks. Those are section 10.
 - 2026-11-03: Section 10. Saved the zone's 11 records to `data/backups/cloudflare-records-2026-11-03-before-aws.json` (ignored by Git). Added one A record with the `cf` CLI: `aws.greglontok.com` to 52.45.148.7, DNS only, automatic TTL. A before-and-after comparison shows that record added and nothing else removed or changed. 1.1.1.1 and 8.8.8.8 both resolve it, and `http://aws.greglontok.com/health` returns ok. The apex still points to Railway.
+- 2026-11-03: Installed certbot 4.0.0 with its Nginx plugin and ran `certbot --nginx -d aws.greglontok.com --redirect`. The certificate is CN=aws.greglontok.com from Let's Encrypt YE1 and expires 2027-02-01. Certbot added the 443 server and a 301 from HTTP. Checked from the laptop: `/health` returns ok over HTTPS, `http://aws.greglontok.com/experience` returns 301 to the https URL, the certificate verifies, and the home page has no `http://` links to the host. `certbot.timer` is enabled.
+- Not yet verified: `certbot renew --dry-run` (waiting on Let's Encrypt staging), the test record, the reboot, and the remaining page and lockdown checks.
