@@ -54,6 +54,14 @@ def test_systemd_starts_without_syncing_packages() -> None:
     assert "uv run --no-sync uvicorn" in service
 
 
+def test_systemd_treats_a_normal_stop_as_success() -> None:
+    service = Path("deploy/systemd/career-platform.service").read_text()
+
+    # uv exits 143 when systemd stops it with SIGTERM, which systemd would
+    # otherwise record as a failure on every stop and reboot.
+    assert "SuccessExitStatus=143" in service
+
+
 def test_nginx_proxies_to_loopback() -> None:
     config = Path("deploy/nginx/career-platform.conf").read_text()
 

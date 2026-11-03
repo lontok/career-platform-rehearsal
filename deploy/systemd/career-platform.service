@@ -10,6 +10,7 @@ Group=career-platform
 WorkingDirectory=/srv/career-platform
 EnvironmentFile=/etc/career-platform/environment
 ExecStart=/usr/local/bin/uv run --no-sync uvicorn app.main:app --host 127.0.0.1 --port 8000
+SuccessExitStatus=143
 Restart=on-failure
 RestartSec=5
 UMask=0077
