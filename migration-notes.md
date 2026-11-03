@@ -12,6 +12,8 @@ A log of the move from Railway to AWS, with every change from the plan in `docs/
 | 2026-11-03 | The plan's Nginx template edits for webroot certificates were dropped | The HTTPS guide uses `certbot --nginx`, which writes the TLS settings itself |
 | 2026-11-03 | The SSH key has no passphrase | The agent generated it in a shell that can't prompt. Add one with `ssh-keygen -p -f ~/.ssh/career-platform-aws`. |
 | 2026-11-03 | The EC2 instance was launched before the section 1 budget exists | Launched on request. The budget is still the next open step. |
+| 2026-11-03 | The systemd unit now starts with `uv run --no-sync uvicorn` | Plain `uv run` syncs the dev group on every start, which put test tools in production and needed the internet to boot |
+| 2026-11-03 | The restore ran as the `career_platform` role, created by `cp_admin` from the server | The plan's app role. The master password went to the server over stdin into a private file, which was deleted after use. |
 
 ## Log
 

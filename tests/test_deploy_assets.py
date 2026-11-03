@@ -46,6 +46,14 @@ def test_systemd_trusts_forwarded_headers_from_loopback_only() -> None:
     assert "forwarded-allow-ips" not in service
 
 
+def test_systemd_starts_without_syncing_packages() -> None:
+    service = Path("deploy/systemd/career-platform.service").read_text()
+
+    # Plain `uv run` syncs the dev group on every start, which installs test
+    # tools in production and needs the internet to boot.
+    assert "uv run --no-sync uvicorn" in service
+
+
 def test_nginx_proxies_to_loopback() -> None:
     config = Path("deploy/nginx/career-platform.conf").read_text()
 
