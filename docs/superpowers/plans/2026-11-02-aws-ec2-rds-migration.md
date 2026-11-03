@@ -74,7 +74,7 @@ Spec: The course guide https://raw.githubusercontent.com/LMU-ISBA/isba-4775-fa26
 
 Gate: you approve one key pair, one t3.micro, and one Elastic IP.
 
-- [ ] Task 8.1: Generate the key on your laptop. The policy doesn't let AWS create it, so the private key never leaves your laptop.
+- [x] Task 8.1: Generate the key on your laptop. The policy doesn't let AWS create it, so the private key never leaves your laptop.
 
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/career-platform-aws -C career-platform-aws
@@ -82,7 +82,7 @@ aws ec2 import-key-pair --key-name career-platform-aws --public-key-material fil
   --tag-specifications 'ResourceType=key-pair,Tags=[{Key=Project,Value=career-platform}]'
 ```
 
-- [ ] Task 8.2: Launch the server.
+- [x] Task 8.2: Launch the server.
 
 ```bash
 . ~/.config/career-platform/aws-ids.env
@@ -100,7 +100,7 @@ INSTANCE_ID="$(aws ec2 run-instances --image-id "$AMI" --instance-type t3.micro 
 ```
 
   If the launch is denied, decode the message with `aws sts decode-authorization-message` to see which rule fired.
-- [ ] Task 8.3: Allocate and attach the Elastic IP. Save `INSTANCE_ID`, `ALLOCATION_ID`, and `EIP` to `aws-ids.env`.
+- [x] Task 8.3: Allocate and attach the Elastic IP. Save `INSTANCE_ID`, `ALLOCATION_ID`, and `EIP` to `aws-ids.env`.
 
 ```bash
 ALLOCATION_ID="$(aws ec2 allocate-address --domain vpc \
@@ -109,14 +109,14 @@ aws ec2 associate-address --instance-id "$INSTANCE_ID" --allocation-id "$ALLOCAT
 EIP="$(aws ec2 describe-addresses --allocation-ids "$ALLOCATION_ID" --query 'Addresses[0].PublicIp' --output text)"
 ```
 
-- [ ] Task 8.4: Before the first SSH connection, compare host keys. Take the ED25519 fingerprint from `aws ec2 get-console-output --instance-id "$INSTANCE_ID" --latest --output text` (between `BEGIN SSH HOST KEY FINGERPRINTS` and `END`). Compare it with `ssh-keyscan -t ed25519 "$EIP" | ssh-keygen -lf -`. They must match.
-- [ ] Task 8.5: Verify in the console and the CLI: instance ID, t3.micro, `HttpTokens` required, credits standard, the Elastic IP attached, security group `career-platform-web`, and a 20 GB encrypted gp3 volume.
+- [x] Task 8.4: Before the first SSH connection, compare host keys. Take the ED25519 fingerprint from `aws ec2 get-console-output --instance-id "$INSTANCE_ID" --latest --output text` (between `BEGIN SSH HOST KEY FINGERPRINTS` and `END`). Compare it with `ssh-keyscan -t ed25519 "$EIP" | ssh-keygen -lf -`. They must match.
+- [x] Task 8.5: Verify in the console and the CLI: instance ID, t3.micro, `HttpTokens` required, credits standard, the Elastic IP attached, security group `career-platform-web`, and a 20 GB encrypted gp3 volume.
 
 ## Section 9: Deploy and restore
 
 Do Tasks 9.1 and 9.2 on your laptop before touching the server.
 
-- [ ] Task 9.1: Test and commit the PostgreSQL scripts. Create `tests/test_postgres_scripts.py` with a `stub_path(tmp_path, scripts) -> dict[str, str]` helper. The helper writes executable bash stubs into `tmp_path / "bin"`, puts that directory first on `PATH`, and logs each call to `tmp_path / "calls.log"`. Add these tests:
+- [x] Task 9.1: Test and commit the PostgreSQL scripts. Create `tests/test_postgres_scripts.py` with a `stub_path(tmp_path, scripts) -> dict[str, str]` helper. The helper writes executable bash stubs into `tmp_path / "bin"`, puts that directory first on `PATH`, and logs each call to `tmp_path / "calls.log"`. Add these tests:
   - `test_backup_keeps_a_private_verified_dump`: exit 0, one `resume-*.dump` on stdout, file mode 600, and directory mode 700.
   - `test_backup_deletes_a_dump_missing_a_table`: exit 65, stderr names `profiles`, and no files remain.
   - `test_backup_deletes_the_file_when_pg_dump_fails`: exit nonzero, and no files remain.
@@ -126,20 +126,20 @@ Do Tasks 9.1 and 9.2 on your laptop before touching the server.
   - In `tests/test_deploy_assets.py`, `test_systemd_trusts_forwarded_headers_from_loopback_only`: the unit doesn't contain `forwarded-allow-ips`.
 
   Run the format, lint, and test commands. Commit the tests, both scripts, the README backup section, and the October 29 evidence file: `git commit -m "feat: add tested PostgreSQL backup and restore scripts"`.
-- [ ] Task 9.2: Add `deploy/nginx/career-platform-http.conf`. It's a port-80 server with `server_name your-domain.example;` and the same `location /` proxy block as `career-platform.conf`. `certbot --nginx` adds HTTPS to it in section 10. Add `test_http_config_proxies_to_loopback`: contains `listen 80;` and `proxy_pass http://127.0.0.1:8000;`, and doesn't contain `listen 443`. Commit: `git commit -m "feat: add the port-80 Nginx config certbot upgrades"`. With your go-ahead, check that Railway's connected branch is `main`, then push the branch.
-- [ ] Task 9.3: On the server, as `ubuntu`, follow the repo's Azure runbook (`deploy/README.md` sections 2 to 4) for packages, the `career-platform` service user, `/srv/career-platform`, and `/etc/career-platform`. Make these changes from the runbook:
+- [x] Task 9.2: Add `deploy/nginx/career-platform-http.conf`. It's a port-80 server with `server_name your-domain.example;` and the same `location /` proxy block as `career-platform.conf`. `certbot --nginx` adds HTTPS to it in section 10. Add `test_http_config_proxies_to_loopback`: contains `listen 80;` and `proxy_pass http://127.0.0.1:8000;`, and doesn't contain `listen 443`. Commit: `git commit -m "feat: add the port-80 Nginx config certbot upgrades"`. With your go-ahead, check that Railway's connected branch is `main`, then push the branch.
+- [x] Task 9.3: On the server, as `ubuntu`, follow the repo's Azure runbook (`deploy/README.md` sections 2 to 4) for packages, the `career-platform` service user, `/srv/career-platform`, and `/etc/career-platform`. Make these changes from the runbook:
   - Install `postgresql-client` instead of `sqlite3`. Ubuntu 26.04's client is version 18. Check that `pg_restore --version` prints 18 or later.
   - Clone with `--branch aws-ec2-rds-migration`.
   - Write `/etc/career-platform/environment` (640, root:career-platform) with `DATABASE_URL=postgresql://career_platform:<app password>@<RDS_HOST>:5432/career_platform`. Generate the app password on the laptop into `~/.config/career-platform/rds-app-password`, and copy it over SSH from stdin so it never appears in a command line.
   - Skip the runbook's seed and its `deploy.sh`.
-- [ ] Task 9.4: Restore from the server.
+- [x] Task 9.4: Restore from the server.
   - Copy `data/backups/resume-20261029T194805Z-1.dump` to the server with `scp` and check its SHA-256.
   - Copy the master password to `/home/ubuntu/.rds-master-password` (mode 600).
   - As `cp_admin`, run `CREATE ROLE career_platform LOGIN PASSWORD :'app_pw'` and `ALTER DATABASE career_platform OWNER TO career_platform`, passing the app password as a psql variable read from a file.
   - Run `deploy/scripts/restore-postgres.sh <dump> "$DATABASE_URL"` as `career-platform` with the environment file loaded.
   - Run `uv sync --locked --no-dev` and `uv run alembic upgrade head`. They should change nothing.
   - Delete the master password file from the server.
-- [ ] Task 9.5: Install the systemd unit and run `systemctl enable --now career-platform`. Install `career-platform-http.conf` as the only enabled Nginx site, with `server_name aws.<your domain>;`. Then run `systemctl enable nginx`. Use sections 4 and 6 of the VM guide for service and log checks, with the EC2 security group in place of the Azure rule. Production DNS stays unchanged.
+- [x] Task 9.5: Install the systemd unit and run `systemctl enable --now career-platform`. Install `career-platform-http.conf` as the only enabled Nginx site, with `server_name aws.<your domain>;`. Then run `systemctl enable nginx`. Use sections 4 and 6 of the VM guide for service and log checks, with the EC2 security group in place of the Azure rule. Production DNS stays unchanged.
 
 ## Section 10: Verify on a test subdomain
 
